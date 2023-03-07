@@ -16,8 +16,8 @@ RESY_HEADERS = {"Authorization": 'ResyAPI api_key=""'}  # Pull from devtools
 RESY_VENUE = 1263
 RESY_PARTY_SIZE = 2
 
-# URL to include in SMS - set to reservation page link
-SMS_URL = "https://bit.ly/..."
+# Extra data to include in message - for example, link to reservation page
+EXTRA_DATA = ""
 
 # Days to check for slots
 VALID_DAYS = [
@@ -35,20 +35,23 @@ http = urllib3.PoolManager()
 
 def send_text(available):
     texts = []
-    for date, count in available:
-        texts.append(f"{date}: {count}")
+    for date, times in available:
+        times_text = ", ".join(times[:3])
+        texts.append(f"{date}: {times_text}")
 
-    texts.append(SMS_URL)
+    if EXTRA_DATA:
+        texts.append(EXTRA_DATA)
 
+    msg = "\n".join(texts)
     http.request(
         "POST",
         TWIL_ENDPOINT,
-        fields={"From": TWIL_FROM, "To": TWIL_TO, "Body": "\n".join(texts)},
+        fields={"From": TWIL_FROM, "To": TWIL_TO, "Body": msg},
         headers=TWIL_HEADERS,
     )
 
 
-def lambda_handler(*args):
+def lambda_handler(*_):
     available = []
 
     for DAY in VALID_DAYS:
@@ -68,10 +71,19 @@ def lambda_handler(*args):
         data = json.loads(response.data)
 
         if slots := data["results"]["venues"][0]["slots"]:
-            available.append((DAY, len(slots)))
+            times = set()
+            for slot in slots:
+                start_datetime = slot["date"]["start"]
+                start_time = start_datetime.split(" ")[-1]
+                start_time_nosec = start_time.rsplit(":", 1)[0]
+                times.add(start_time_nosec)
 
-    print(f"found {len(available)} days with slots")
+            available.append((DAY, sorted(times)))
+
     if available:
+        for day, hours in available:
+            print(f"found slots on {day}: {hours}")
+
         send_text(available)
 
 
