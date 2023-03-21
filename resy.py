@@ -70,21 +70,27 @@ def lambda_handler(*_):
 
         data = json.loads(response.data)
 
-        if slots := data["results"]["venues"][0]["slots"]:
-            times = set()
-            for slot in slots:
-                start_datetime = slot["date"]["start"]
-                start_time = start_datetime.split(" ")[-1]
-                start_time_nosec = start_time.rsplit(":", 1)[0]
-                times.add(start_time_nosec)
+        if venues := data["results"]["venues"]:
+            if slots := venues[0]["slots"]:
+                times = set()
+                for slot in slots:
+                    start_datetime = slot["date"]["start"]
+                    start_time = start_datetime.split(" ")[-1]
+                    start_time_nosec = start_time.rsplit(":", 1)[0]
+                    times.add(start_time_nosec)
 
-            available.append((DAY, sorted(times)))
+                available.append((DAY, sorted(times)))
+        else:
+            print("No venue found")
+            return
 
     if available:
         for day, hours in available:
             print(f"found slots on {day}: {hours}")
 
         send_text(available)
+    else:
+        print("no slots found")
 
 
 lambda_handler({}, {}) if __name__ == "__main__" else None
